@@ -1,0 +1,15 @@
+{
+  "name": "color-tree",
+  "version": "1.0.0",
+  "description": "It's make tree for array of paths with comments and colors.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Anton Vashurkin",
+  "license": "MIT",
+  "dependencies": {
+    "archy": "^1.0.0",
+    "chalk": "^1.1.3"
+  }
+}
