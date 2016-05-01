@@ -1,56 +1,62 @@
 var path = require('path');
 var archy = require('archy');
 var chalk = require('chalk');
+var clone = require('clone');
 
-var options = {
-	descriptionQuotes: '()',
-	separator: path.sep,
-	escapedSeparator: path.sep.replace('\\', '\\\\'),
-	root: 'last folder' //all, last folder, number of root folders
-};
 function normalize(path){
 	return Array.isArray(path) ? path[0] : path;
-}
-function more(data){
-	var str = data[0] || '';
-	var strOptions = data[1];
-	
-	if(strOptions.descr){
-		str += ' ' + options.descriptionQuotes[0] + strOptions.descr + options.descriptionQuotes[1];
-	}
-	
-	if(strOptions.style){
-		var chalkOptions = strOptions.style.split('.').filter(Boolean);
-		var customChalk = chalk;
-		for (var i = chalkOptions.length - 1; i >= 0; i--) {
-			customChalk = customChalk[chalkOptions[i]];
+};
+
+function folderLabel(points, options){
+	return points.length ? options.separator : ''
+};
+
+function paint(point, index, pathOptions, options){
+	if(options.paintingStrategy === 'all' || options.paintingStrategy > index){		
+		if(pathOptions.descr){
+			point += ' ' + options.descriptionQuotes[0] + pathOptions.descr + options.descriptionQuotes[1];
 		}
-		str = customChalk(str);	
+		
+		if(pathOptions.style){
+			var chalkOptions = pathOptions.style.split('.').filter(Boolean);
+			var customChalk = chalk;
+			for(var i = chalkOptions.length - 1; i >= 0; i--){
+				customChalk = customChalk[chalkOptions[i]];
+			}
+			point = customChalk(point);	
+		}
 	}
 
-	return str;
-}
-function archyAST(group){
+	return point;
+};
+
+function archyAST(group, options){
 	var root = group.samePath;
-	if(options.root === 'last folder'){
-		root = root.split(options.separator).pop();
-	}else if(typeof options.root === 'number'){
+	
+	if(typeof options.root === 'number'){
 		root = root.split(options.separator);
 		root = root.slice(root.length - options.root >= 0 ? root.length - options.root : 0, root.length).join(options.separator);
 	}
 
 	var AST = {
-		label: '' || root,
+		label: '' || root ? (root + folderLabel(group.paths, options)) : '',
 		nodes: []
 	};
+
 	group.paths = group.paths.sort();
+
 	for(var i = 0; i < group.paths.length; i++){
+		var astPointer = AST;
 		var points = normalize(group.paths[i]).replace(group.samePath, '').split(options.separator).filter(Boolean);
 		points.reverse();
-		var astPointer = AST;
+		var pathOptions = Array.isArray(group.paths[i]) ? group.paths[i][1] : {};
+		if(!pathOptions.style){
+			pathOptions.style = options.defaultStyle || '';
+		}
+
 		while(points.length){
 			if(!astPointer['label']){
-				astPointer['label'] = points.pop();
+				astPointer['label'] = paint(points.pop() + folderLabel(points, options), points.length, pathOptions, options);
 			}
 			if(points.length){
 				if(!astPointer['nodes']){
@@ -58,7 +64,7 @@ function archyAST(group){
 				}
 				if(astPointer['nodes']){
 					var createNode = true;
-					var nextPoint = points.pop();
+					var nextPoint = paint(points.pop() + folderLabel(points, options), points.length, pathOptions, options);
 					for(var j = 0; j < astPointer['nodes'].length; j++){
 						if(astPointer['nodes'][j]['label'] === nextPoint){
 							astPointer = astPointer['nodes'][j];
@@ -72,17 +78,13 @@ function archyAST(group){
 					}
 				}
 			}
-			if(!points.length && Array.isArray(group.paths[i])){
-				group.paths[i][0] = group.paths[i][0].split(options.separator).pop();
-				astPointer['label'] = more(group.paths[i]);	
-			}
 		}
 	}
 
 	return AST;
 };
 
-function getGroups(paths){
+function getGroups(paths, options){
 	var groups = [];
 
 	paths.reverse();
@@ -124,24 +126,46 @@ function getGroups(paths){
 		}
 	}
 	return groups;
-}
+};
 
-module.exports = function(paths){
-	return getGroups(paths).map(function(group){
-		return archy(archyAST(group));
-	}).join('\n');
-}
+module.exports = function(options){
+	var defaultOptions = {
+		descriptionQuotes: '()',
+		separator: path.sep,
+		escapedSeparator: path.sep.replace('\\', '\\\\'),
+		root: 'last folder', //all, last folder, number of root folders (like: 2)
+		paintingStrategy: 'last point',// all, last node, number of nodes (like: 2)
+		defaultStyle: ''
+	};
 
-module.exports.set = function(_options){
-	for(var i = 0, k = Object.keys(_options), key = k[0], value=_options[key], l = k.length; i < l; i++, key = k[i], value=_options[key]){
-		if(key === 'separator'){
-			options['escapedSeparator'] = value.replace('\\', '\\\\');
+	for(optionName in options){
+		if(optionName === 'separator'){
+			defaultOptions['escapedSeparator'] = options[optionName].replace('\\', '\\\\');
 		}
-		if(key !== 'escapedSeparator'){
-	    	options[key] = value;
+		if(optionName !== 'escapedSeparator'){
+	    	defaultOptions[optionName] = options[optionName];
 		}
 	}
-}
+
+	if(defaultOptions['root'] === 'last folder'){
+		defaultOptions['root'] = 1;
+	}
+
+	if(defaultOptions['paintingStrategy'] === 'last point'){
+		defaultOptions['paintingStrategy'] = 1;
+	}
+
+	return function(_paths){
+		var paths = clone(_paths);
+		if(paths && Array.isArray(paths)){
+			return getGroups(paths, defaultOptions).map(function(group){
+				return archy(archyAST(group, defaultOptions));
+			}).join('\n');
+		}else{
+			return null;
+		}
+	}
+};
 
 var paths = [
 	['1/a/bb/fff/file-4.ext', {style: 'green', descr: '1mb'}],
@@ -149,10 +173,9 @@ var paths = [
 	'r/file-6.ext',
 	'1/a/bb/ggg/file-5.ext',
 	['1/a/bb/eee/file-3.ext', {style: 'red', descr: '2mb'}],
+	['1/a/bb/eee/file-4.ext', {style: 'green', descr: '2mb'}],
 	'1/a/bb/eee/1111/file-1.ext'
 ];
 
-module.exports.set({separator: '/', root: 'all', descriptionQuotes: '<>'});
-console.log(module.exports(paths));
-
-//add default color
+var colorFullTree = module.exports({separator: '/', root: 'all', descriptionQuotes: '<>',/* paintingStrategy: 'all',*/ defaultStyle: 'green'});
+console.log(colorFullTree(paths));
