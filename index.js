@@ -46,28 +46,35 @@ function archyAST(group){
 	group.paths = group.paths.sort();
 	for(var i = 0; i < group.paths.length; i++){
 		var points = normalize(group.paths[i]).replace(group.samePath, '').split(options.separator).filter(Boolean);
-		var counter = points.length;
 		points.reverse();
-
 		var astPointer = AST;
-		while(counter){
+		while(points.length){
 			if(!astPointer['label']){
 				astPointer['label'] = points.pop();
-				counter -= 1;
 			}
-			if(counter > 0){
+			if(points.length){
 				if(!astPointer['nodes']){
 					astPointer['nodes'] = [];
 				}
 				if(astPointer['nodes']){
-					var nodeIndex = astPointer['nodes'].push({label: '', nodes: []}) - 1;
-					astPointer = astPointer['nodes'][nodeIndex];
+					var createNode = true;
+					var nextPoint = points.pop();
+					for(var j = 0; j < astPointer['nodes'].length; j++){
+						if(astPointer['nodes'][j]['label'] === nextPoint){
+							astPointer = astPointer['nodes'][j];
+							createNode = false;
+							break;
+						}
+					}
+					if(createNode){
+						var nodeIndex = astPointer['nodes'].push({label: nextPoint, nodes: []}) - 1;
+						astPointer = astPointer['nodes'][nodeIndex];
+					}
 				}
-			}else{
-				if(Array.isArray(group.paths[i])){
-					group.paths[i][0] = group.paths[i][0].split(options.separator).pop();
-					astPointer['label'] = more(group.paths[i]);	
-				}
+			}
+			if(!points.length && Array.isArray(group.paths[i])){
+				group.paths[i][0] = group.paths[i][0].split(options.separator).pop();
+				astPointer['label'] = more(group.paths[i]);	
 			}
 		}
 	}
@@ -136,14 +143,16 @@ module.exports.set = function(_options){
 	}
 }
 
-/*var paths = [
-	['a/bb/fff/file-4.ext', {style: 'bold.red', descr: '1mb'}],
-	'a/bb/eee/file-2.ext',
+var paths = [
+	['1/a/bb/fff/file-4.ext', {style: 'green', descr: '1mb'}],
+	'1/a/bb/eee/file-2.ext',
 	'r/file-6.ext',
-	'a/bb/ggg/file-5.ext',
-	'a/bb/eee/file-3.ext',
-	'a/bb/ccc/file-1.ext'
+	'1/a/bb/ggg/file-5.ext',
+	['1/a/bb/eee/file-3.ext', {style: 'red', descr: '2mb'}],
+	'1/a/bb/eee/1111/file-1.ext'
 ];
 
-module.exports.set({separator: '/', root: 'all'});
-console.log(module.exports(paths));*/
+module.exports.set({separator: '/', root: 'all', descriptionQuotes: '<>'});
+console.log(module.exports(paths));
+
+//add default color
