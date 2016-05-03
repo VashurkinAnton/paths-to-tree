@@ -3,6 +3,25 @@ var archy = require('archy');
 var chalk = require('chalk');
 var clone = require('clone');
 
+var chalkTypes = {
+	color: ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "gray"],
+	bg: ["bgBlack", "bgRed", "bgGreen", "bgYellow", "bgBlue", "bgMagenta", "bgCyan", "bgWhite"],
+	modifer: ["reset", "bold", "dim", "italic", "underline", "inverse", "hidden", "strikethrough"]
+};
+
+function parseChalkStyle(style){
+	var styles = {};
+	style.split('.').filter(Boolean).forEach(function(option){
+		for(var type in chalkTypes){
+			if(chalkTypes[type].indexOf(option) !== -1){
+				styles[type] = option;
+				break;
+			}
+		}
+	});
+	return styles;
+}
+
 function normalize(path){
 	return Array.isArray(path) ? path[0] : path;
 };
@@ -11,23 +30,45 @@ function folderLabel(points, options){
 	return points.length ? options.separator : ''
 };
 
-function paint(point, index, pathOptions, options){
-	if(options.paintingStrategy === 'all' || options.paintingStrategy > index){		
-		if(pathOptions.descr){
-			point += ' ' + options.descriptionQuotes[0] + pathOptions.descr + options.descriptionQuotes[1];
+function paint(node, index, pathOptions, options){
+	if(options.paintingStrategy && (options.paintingStrategy.coloring === 'all' || options.paintingStrategy.coloring > index)){		
+		if(pathOptions.descr && !index){
+			node.label += ' ' + options.descriptionQuotes[0] + pathOptions.descr + options.descriptionQuotes[1];
 		}
-		
 		if(pathOptions.style){
-			var chalkOptions = pathOptions.style.split('.').filter(Boolean);
 			var customChalk = chalk;
-			for(var i = chalkOptions.length - 1; i >= 0; i--){
-				customChalk = customChalk[chalkOptions[i]];
+			var styles = parseChalkStyle(pathOptions.style);
+			for(var style in styles){
+				var addStyles = false;
+
+				if(!node['style']){
+					node['style'] = {};
+				}
+
+				if(options.paintingStrategy.priority && options.paintingStrategy.priority[style]){
+					var newStylePriority = options.paintingStrategy.priority[style].indexOf(styles[style]);
+					var oldStylePriority = options.paintingStrategy.priority[style].indexOf(node['style'][style]);
+
+					if(newStylePriority >= oldStylePriority){
+						addStyles = styles[style];
+					}else{
+						addStyles = node['style'][style];
+					}
+				}
+
+				if(addStyles){
+					customChalk = customChalk[addStyles];
+					node['style'][style] = addStyles;	
+				}
 			}
-			point = customChalk(point);	
+
+			if(customChalk instanceof Function){
+				node.label = customChalk(chalk.stripColor(node.label));
+			}
 		}
 	}
 
-	return point;
+	return node;
 };
 
 function archyAST(group, options){
@@ -50,13 +91,17 @@ function archyAST(group, options){
 		var points = normalize(group.paths[i]).replace(group.samePath, '').split(options.separator).filter(Boolean);
 		points.reverse();
 		var pathOptions = Array.isArray(group.paths[i]) ? group.paths[i][1] : {};
+		
 		if(!pathOptions.style){
 			pathOptions.style = options.defaultStyle || '';
 		}
+		
+		paint(astPointer, points.length, pathOptions, options);
 
 		while(points.length){
 			if(!astPointer['label']){
-				astPointer['label'] = paint(points.pop() + folderLabel(points, options), points.length, pathOptions, options);
+				astPointer['label'] = points.pop() + folderLabel(points, options);
+				paint(astPointer, points.length, pathOptions, options);
 			}
 			if(points.length){
 				if(!astPointer['nodes']){
@@ -64,10 +109,11 @@ function archyAST(group, options){
 				}
 				if(astPointer['nodes']){
 					var createNode = true;
-					var nextPoint = paint(points.pop() + folderLabel(points, options), points.length, pathOptions, options);
+					var nextPoint = points.pop() + folderLabel(points, options);
 					for(var j = 0; j < astPointer['nodes'].length; j++){
-						if(astPointer['nodes'][j]['label'] === nextPoint){
+						if(chalk.stripColor(astPointer['nodes'][j]['label']) === chalk.stripColor(nextPoint)){
 							astPointer = astPointer['nodes'][j];
+							paint(astPointer, points.length, pathOptions, options);
 							createNode = false;
 							break;
 						}
@@ -75,6 +121,7 @@ function archyAST(group, options){
 					if(createNode){
 						var nodeIndex = astPointer['nodes'].push({label: nextPoint, nodes: []}) - 1;
 						astPointer = astPointer['nodes'][nodeIndex];
+						paint(astPointer, points.length, pathOptions, options);
 					}
 				}
 			}
@@ -134,15 +181,30 @@ module.exports = function(options){
 		separator: path.sep,
 		escapedSeparator: path.sep.replace('\\', '\\\\'),
 		root: 'last folder', //all, last folder, number of root folders (like: 2)
-		paintingStrategy: 'last point',// all, last node, number of nodes (like: 2)
+		paintingStrategy: {
+			coloring: 'all',// all, last node, number of nodes (like: 2)
+			priority: {
+				color: ['green', 'red'],
+				bg: [],
+				modifer: []
+			} 
+		},
 		defaultStyle: ''
 	};
 
+	var ignore = ['escapedSeparator', 'paintingStrategy'];
 	for(optionName in options){
 		if(optionName === 'separator'){
 			defaultOptions['escapedSeparator'] = options[optionName].replace('\\', '\\\\');
 		}
-		if(optionName !== 'escapedSeparator'){
+
+		if(optionName === 'paintingStrategy'){
+			for(stategyOption in options['paintingStrategy']){
+				defaultOptions['paintingStrategy'][stategyOption] = options['paintingStrategy'][stategyOption];
+			}
+		}
+
+		if(ignore.indexOf(optionName) === -1){
 	    	defaultOptions[optionName] = options[optionName];
 		}
 	}
@@ -151,8 +213,8 @@ module.exports = function(options){
 		defaultOptions['root'] = 1;
 	}
 
-	if(defaultOptions['paintingStrategy'] === 'last point'){
-		defaultOptions['paintingStrategy'] = 1;
+	if(defaultOptions['paintingStrategy']['coloring'] === 'last point'){
+		defaultOptions['paintingStrategy']['coloring'] = 1;
 	}
 
 	return function(_paths){
