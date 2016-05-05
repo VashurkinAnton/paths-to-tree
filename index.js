@@ -184,7 +184,7 @@ module.exports = function(options){
 		paintingStrategy: {
 			coloring: 'all',// all, last node, number of nodes (like: 2)
 			priority: {
-				color: ['green', 'red'],
+				color: ['green', 'yellow', 'red'],
 				bg: [],
 				modifer: []
 			} 
@@ -229,7 +229,7 @@ module.exports = function(options){
 	}
 };
 
-var paths = [
+/*var paths = [
 	['1/a/bb/fff/file-4.ext', {style: 'green', descr: '1mb'}],
 	'1/a/bb/eee/file-2.ext',
 	'r/file-6.ext',
@@ -239,5 +239,5 @@ var paths = [
 	'1/a/bb/eee/1111/file-1.ext'
 ];
 
-var colorFullTree = module.exports({separator: '/', root: 'all', descriptionQuotes: '<>',/* paintingStrategy: 'all',*/ defaultStyle: 'green'});
-console.log(colorFullTree(paths));
+var colorFullTree = module.exports({separator: '/', root: 'all', descriptionQuotes: '<>',/* paintingStrategy: 'all',* / defaultStyle: 'green'});
+console.log(colorFullTree(paths));*/
