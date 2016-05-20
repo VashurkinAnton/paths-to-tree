@@ -1,6 +1,6 @@
 {
-  "name": "color-tree",
-  "version": "1.0.0",
+  "name": "paths-to-tree",
+  "version": "0.0.1",
   "description": "It's make tree for array of paths with comments and colors.",
   "main": "index.js",
   "scripts": {
@@ -9,8 +9,7 @@
   "author": "Anton Vashurkin",
   "license": "MIT",
   "dependencies": {
-    "archy": "^1.0.0",
-    "chalk": "^1.1.3",
+    "classic-ancii-tree": "^1.0.1",
     "clone": "^1.0.2"
   }
 }
